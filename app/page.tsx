@@ -98,7 +98,7 @@ export default function Page() {
       <footer className="mt-16 border-t border-line pt-6 text-[13px] leading-relaxed text-dim">
         <p>
           This reads one page, the way a search engine would. It is a starting
-          point for a conversation, not a ranking guarantee — nobody can promise
+          point for a conversation, not a ranking guarantee. Nobody can promise
           those.
         </p>
         <p className="mt-3">

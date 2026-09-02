@@ -10,7 +10,7 @@ const WINDOW_MS = 10 * 60 * 1000;
 const MAX_PER_WINDOW = 20;
 
 /**
- * Charged per completed audit, not per request — a rejected URL should not
+ * Charged per completed audit, not per request. A rejected URL should not
  * cost someone their quota while they are still typing it correctly.
  */
 function overLimit(ip: string) {

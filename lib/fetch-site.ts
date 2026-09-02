@@ -9,7 +9,7 @@ import type { SiteInput } from "@/lib/checks";
  * response back out of the report.
  *
  * So: only http(s), resolve DNS ourselves, refuse any address that is not
- * public, and re-check on every redirect hop — a public hostname is free to
+ * public, and re-check on every redirect hop. A public hostname is free to
  * 302 to localhost, and checking only the first URL would miss it.
  */
 
@@ -63,7 +63,7 @@ async function assertPublicHost(hostname: string) {
     throw new FetchFailedError(`Could not find a server for ${hostname}.`);
   }
   if (!results.length) throw new FetchFailedError(`Could not find a server for ${hostname}.`);
-  // Every resolved address must be public — a name that returns one public and
+  // Every resolved address must be public. A name that returns one public and
   // one private address is exactly the DNS-rebinding shape we are refusing.
   for (const r of results) {
     if (!ipIsPublic(r.address)) {
@@ -97,8 +97,8 @@ export function normaliseUrl(input: string): URL {
 /**
  * A cookie jar, scoped to one audit and keyed by host.
  *
- * Without one, any site that authenticates or gates with a cookie handshake —
- * Clerk, Cloudflare, a consent wall — sets a cookie, redirects back, finds the
+ * Without one, any site that authenticates or gates with a cookie handshake
+ * (Clerk, Cloudflare, a consent wall) sets a cookie, redirects back, finds the
  * cookie missing because we discarded it, and redirects to the handshake
  * again. That loops until the redirect budget runs out and reports "too many
  * redirects", which is both wrong and unhelpful.

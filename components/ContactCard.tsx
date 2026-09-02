@@ -78,9 +78,9 @@ export default function ContactCard({
         {heading}
       </h2>
       <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-body">
-        The report above is free and yours to act on — every item lists the fix,
-        and plenty of them are an afternoon's work for whoever built the site.
-        If you would rather it was just done, or you want the whole thing
+        The report above is free and yours to act on. Every item lists the fix,
+        and plenty of them are an afternoon&rsquo;s work for whoever built the
+        site. If you would rather it was just done, or you want the whole thing
         rebuilt properly, tell me what you are dealing with.
       </p>
 

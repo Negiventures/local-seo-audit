@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Local SEO Audit — can customers find and contact this business?",
+  title: "Local SEO Audit: can customers find and contact this business?",
   description:
     "Check any small-business website for the things that decide whether it shows up in local search and whether a visitor can actually get in touch.",
 };

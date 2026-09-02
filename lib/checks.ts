@@ -1,6 +1,6 @@
 /**
  * The checks that decide whether a small local business can be found and
- * contacted. Deliberately not a general SEO audit — a builder in Manchester
+ * contacted. Deliberately not a general SEO audit. A builder in Manchester
  * does not need canonical-tag advice, they need a phone number a thumb can
  * tap and enough on the page for Google to know what town they work in.
  *
@@ -109,8 +109,9 @@ export function looksLikePlaceholder(html: string) {
 /**
  * A single-page app serves a near-empty shell and paints the content in the
  * browser. This checker never runs JavaScript, so without detecting that, a
- * perfectly good React site reads as "no content" — the most damaging wrong
- * answer this tool can give, and one you would be showing to the site's owner.
+ * perfectly good React site reads as "no content". That is the most damaging
+ * wrong answer this tool can give, and one you would be showing to the owner
+ * of the site.
  */
 export function isClientRendered(html: string) {
   const emptyRoot = /<div[^>]+id=["'](root|app|__next|__nuxt)["'][^>]*>\s*<\/div>/i.test(html);

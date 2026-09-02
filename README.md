@@ -19,13 +19,13 @@ explicit note that nobody can guarantee rankings.
 
 ## What it checks
 
-**Reachable** — HTTPS certificate validity, whether there is a real site here at
+**Reachable.** HTTPS certificate validity, whether there is a real site here at
 all or just a holding page, server response time, mobile viewport.
 
-**Findable** — title, meta description, single H1, `LocalBusiness` structured
+**Findable.** Title, meta description, single H1, `LocalBusiness` structured
 data, whether the copy names the towns served, robots/sitemap.
 
-**Trusted** — tap-to-call link, postal address on the page, job photos and alt
+**Trusted.** Tap-to-call link, postal address on the page, job photos and alt
 text, social sharing tags.
 
 ## Security
@@ -34,7 +34,7 @@ The whole app takes a URL from a stranger and fetches it server-side, which is
 textbook SSRF territory. `lib/fetch-site.ts` therefore:
 
 - allows `http`/`https` only, and rejects embedded credentials
-- resolves DNS itself and refuses any non-public address — loopback, RFC1918,
+- resolves DNS itself and refuses any non-public address: loopback, RFC1918,
   carrier NAT, link-local (including `169.254.169.254`, the cloud metadata
   endpoint), multicast and IPv4-mapped IPv6 like `::ffff:10.0.0.1`
 - **re-checks every redirect hop**, because a public hostname is free to 302 to
