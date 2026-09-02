@@ -65,9 +65,12 @@ export default function ContactCard({
   const field =
     "w-full rounded-lg border border-line-2 bg-paper px-3.5 py-3 text-[15px] text-ink outline-none transition-colors placeholder:text-dim focus-visible:border-ink focus-visible:ring-2 focus-visible:ring-ink/15";
 
-  const heading = failures
-    ? `Want these ${failures} fixed?`
-    : "Want a hand with any of this?";
+  const heading =
+    failures === 1
+      ? "Want that one fixed?"
+      : failures
+        ? `Want these ${failures} fixed?`
+        : "Want a hand with any of this?";
 
   return (
     <section id="contact" className="mt-14 rounded-2xl border border-line bg-surface p-6 sm:p-8">
