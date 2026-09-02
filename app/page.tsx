@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Report, { type AuditResult } from "@/components/Report";
+import ContactCard from "@/components/ContactCard";
 
 export default function Page() {
   const [url, setUrl] = useState("");
@@ -86,6 +87,13 @@ export default function Page() {
       </form>
 
       {result && <Report result={result} />}
+
+      {/* Highest-intent moment on the site is right after someone reads their
+          own score, so the ask sits there rather than in the footer. */}
+      <ContactCard
+        auditedUrl={result?.url}
+        failures={result?.summary.fail}
+      />
 
       <footer className="mt-16 border-t border-line pt-6 text-[13px] leading-relaxed text-dim">
         <p>
