@@ -13,7 +13,7 @@ import type { SiteInput } from "@/lib/checks";
  * 302 to localhost, and checking only the first URL would miss it.
  */
 
-const MAX_REDIRECTS = 4;
+const MAX_REDIRECTS = 8;
 const TIMEOUT_MS = 10_000;
 const MAX_BYTES = 2_000_000;
 
@@ -94,10 +94,55 @@ export function normaliseUrl(input: string): URL {
   return url;
 }
 
+/**
+ * A cookie jar, scoped to one audit and keyed by host.
+ *
+ * Without one, any site that authenticates or gates with a cookie handshake —
+ * Clerk, Cloudflare, a consent wall — sets a cookie, redirects back, finds the
+ * cookie missing because we discarded it, and redirects to the handshake
+ * again. That loops until the redirect budget runs out and reports "too many
+ * redirects", which is both wrong and unhelpful.
+ *
+ * Cookies are only ever replayed to the host that set them, so a redirect to
+ * a third party cannot collect them.
+ */
+export type Jar = Map<string, Map<string, string>>;
+
+export function storeCookies(jar: Jar, host: string, setCookies: string[]) {
+  if (!setCookies.length) return;
+  const forHost = jar.get(host) ?? new Map<string, string>();
+  for (const raw of setCookies) {
+    const [pair] = raw.split(";");
+    const eq = pair.indexOf("=");
+    if (eq <= 0) continue;
+    const name = pair.slice(0, eq).trim();
+    const value = pair.slice(eq + 1).trim();
+    if (!name) continue;
+    // An expiry in the past is a deletion, not a cookie.
+    if (/expires=Thu, 01 Jan 1970/i.test(raw) || /max-age=0(?!\d)/i.test(raw)) {
+      forHost.delete(name);
+      continue;
+    }
+    forHost.set(name, value);
+  }
+  jar.set(host, forHost);
+}
+
+export function cookieHeaderFor(jar: Jar, host: string): string {
+  const forHost = jar.get(host);
+  if (!forHost || forHost.size === 0) return "";
+  return [...forHost].map(([k, v]) => `${k}=${v}`).join("; ");
+}
+
 async function guardedFetch(url: URL, signal: AbortSignal): Promise<Response> {
   let current = url;
+  const jar: Jar = new Map();
+  const seen = new Set<string>();
+
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     await assertPublicHost(current.hostname);
+
+    const cookie = cookieHeaderFor(jar, current.hostname);
     const res = await fetch(current.toString(), {
       redirect: "manual",
       signal,
@@ -107,15 +152,29 @@ async function guardedFetch(url: URL, signal: AbortSignal): Promise<Response> {
         "User-Agent":
           "Mozilla/5.0 (compatible; LocalSEOAudit/1.0; +https://github.com/Negiventures/local-seo-audit)",
         Accept: "text/html,application/xhtml+xml",
+        ...(cookie ? { Cookie: cookie } : {}),
       },
     });
+
+    storeCookies(jar, current.hostname, res.headers.getSetCookie?.() ?? []);
+
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get("location");
       if (!loc) return res;
-      current = new URL(loc, current);
-      if (current.protocol !== "http:" && current.protocol !== "https:") {
+      const next = new URL(loc, current);
+      if (next.protocol !== "http:" && next.protocol !== "https:") {
         throw new UnsafeUrlError("The site redirected somewhere we will not follow.");
       }
+      // Revisiting a URL we have already fetched means the gate is not being
+      // satisfied, and more hops will not help.
+      const key = next.toString();
+      if (seen.has(key)) {
+        throw new FetchFailedError(
+          "That site keeps redirecting in a loop, usually a login or cookie gate."
+        );
+      }
+      seen.add(key);
+      current = next;
       continue;
     }
     return res;

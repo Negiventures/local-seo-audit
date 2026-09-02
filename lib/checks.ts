@@ -106,6 +106,19 @@ export function looksLikePlaceholder(html: string) {
   return { hit: hit ?? null, thin, words: text.split(/\s+/).filter(Boolean).length };
 }
 
+/**
+ * A single-page app serves a near-empty shell and paints the content in the
+ * browser. This checker never runs JavaScript, so without detecting that, a
+ * perfectly good React site reads as "no content" — the most damaging wrong
+ * answer this tool can give, and one you would be showing to the site's owner.
+ */
+export function isClientRendered(html: string) {
+  const emptyRoot = /<div[^>]+id=["'](root|app|__next|__nuxt)["'][^>]*>\s*<\/div>/i.test(html);
+  const words = textOf(html).split(/\s+/).filter(Boolean).length;
+  const scripts = (html.match(/<script/gi) ?? []).length;
+  return emptyRoot || (words < 60 && scripts >= 2 && html.length < 20000);
+}
+
 export function hasLocalBusinessSchema(html: string) {
   const blocks =
     html.match(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi) ?? [];
@@ -144,6 +157,10 @@ export function runChecks(site: SiteInput): Finding[] {
   const { html } = site;
   const text = textOf(html);
   const lower = html.toLowerCase();
+  const spa = isClientRendered(html);
+  // Anything read out of the body is unreliable on a client-rendered page, so
+  // those checks report "could not read" instead of asserting an absence.
+  const unread = "This could not be read: the page paints its content with JavaScript, which this check does not run.";
 
   // ---------- Reachable ----------
 
@@ -169,8 +186,24 @@ export function runChecks(site: SiteInput): Finding[] {
         }
   );
 
+  if (spa) {
+    f.push({
+      id: "client-rendered",
+      group: "Reachable",
+      title: "Content is drawn by JavaScript",
+      status: "warn",
+      detail:
+        "The page arrives nearly empty and fills itself in the browser, so the checks below that read page content could not see it.",
+      impact:
+        "Google can usually run the JavaScript, but it is slower and less reliable than reading the page directly, and link previews on WhatsApp and Facebook often show nothing at all.",
+      fix: "Render the main content on the server so the page arrives complete. In Next.js or Astro this is the default; in a plain React app it means adding server rendering or prerendering.",
+    });
+  }
+
   const ph = looksLikePlaceholder(html);
-  if (ph.hit || ph.thin) {
+  // A holding page and a JS app both look empty in the raw HTML. Only one of
+  // them actually is.
+  if (!spa && (ph.hit || ph.thin)) {
     f.push({
       id: "placeholder",
       group: "Reachable",
@@ -255,6 +288,7 @@ export function runChecks(site: SiteInput): Finding[] {
     group: "Findable",
     title: "Main heading",
     status: h1s === 1 ? "pass" : "warn",
+    ...(spa && h1s === 0 ? { detail: unread } : {}),
     detail:
       h1s === 0
         ? "The page has no main heading."
@@ -299,7 +333,9 @@ export function runChecks(site: SiteInput): Finding[] {
     status: townish ? "pass" : "warn",
     detail: townish
       ? "The page names the area it serves in the text."
-      : "No town or region is named in the page copy.",
+      : spa
+        ? unread
+        : "No town or region is named in the page copy.",
     ...(!townish && {
       impact:
         'Nobody searches for "builder". They search for "builder in Sale". If the towns are not written on the page, the page cannot answer that search.',
@@ -323,7 +359,8 @@ export function runChecks(site: SiteInput): Finding[] {
 
   const telLinks = (lower.match(/href\s*=\s*["']tel:/g) ?? []).length;
   const phones = findPhones(text);
-  const phoneStatus: Status = telLinks > 0 ? "pass" : phones.length > 0 ? "warn" : "fail";
+  const phoneStatus: Status =
+    telLinks > 0 ? "pass" : phones.length > 0 ? "warn" : spa ? "warn" : "fail";
   f.push({
     id: "phone",
     group: "Trusted",
@@ -334,7 +371,9 @@ export function runChecks(site: SiteInput): Finding[] {
         ? `${telLinks} tap-to-call link${telLinks > 1 ? "s" : ""} on the page.`
         : phones.length > 0
           ? `A phone number appears as text (${phones[0]}) but is not tappable.`
-          : "No phone number found on the page.",
+          : spa
+            ? unread
+            : "No phone number found on the page.",
     ...(phoneStatus !== "pass" && {
       impact:
         "On a phone, a number that is not a link has to be memorised or copied. Every extra step loses calls, and calls are the enquiry that converts best for a trade.",
@@ -353,7 +392,9 @@ export function runChecks(site: SiteInput): Finding[] {
     status: hasAddress ? "pass" : "warn",
     detail: hasAddress
       ? "A postal address appears on the page."
-      : "No postal address found on the page.",
+      : spa
+        ? unread
+        : "No postal address found on the page.",
     ...(!hasAddress && {
       impact:
         "Google cross-checks the address here against the Google Business Profile. A missing or mismatched one is a common reason a business never appears in the map pack.",
@@ -372,7 +413,9 @@ export function runChecks(site: SiteInput): Finding[] {
     status: altStatus,
     detail:
       imgs.length === 0
-        ? "There are no images on the page."
+        ? spa
+          ? unread
+          : "There are no images on the page."
         : `${imgs.length} images, ${withAlt} with alt text.`,
     ...(altStatus !== "pass" && {
       impact:

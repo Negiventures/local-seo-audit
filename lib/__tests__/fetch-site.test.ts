@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { ipIsPublic, normaliseUrl, UnsafeUrlError } from "@/lib/fetch-site";
+import {
+  ipIsPublic, normaliseUrl, UnsafeUrlError,
+  storeCookies, cookieHeaderFor, type Jar,
+} from "@/lib/fetch-site";
 
 /**
  * These are the tests that matter most in this repo. Everything else produces a
@@ -90,5 +93,53 @@ describe("normaliseUrl", () => {
 
   it("refuses an empty address", () => {
     expect(() => normaliseUrl("   ")).toThrow(UnsafeUrlError);
+  });
+});
+
+describe("cookie jar", () => {
+  it("stores and replays a cookie for the host that set it", () => {
+    const jar: Jar = new Map();
+    storeCookies(jar, "a.com", ["session=abc; Path=/; Secure", "theme=dark"]);
+    expect(cookieHeaderFor(jar, "a.com")).toBe("session=abc; theme=dark");
+  });
+
+  it("never sends one host's cookies to another", () => {
+    // The failure mode this prevents: a redirect to a third party harvesting
+    // whatever the first site set.
+    const jar: Jar = new Map();
+    storeCookies(jar, "a.com", ["session=secret"]);
+    expect(cookieHeaderFor(jar, "evil.com")).toBe("");
+  });
+
+  it("treats an expiry in the past as a deletion", () => {
+    // Clerk's handshake clears cookies exactly this way; keeping them would
+    // replay a stale session and re-trigger the gate.
+    const jar: Jar = new Map();
+    storeCookies(jar, "a.com", ["session=abc"]);
+    storeCookies(jar, "a.com", ["session=; Expires=Thu, 01 Jan 1970 00:00:00 GMT"]);
+    expect(cookieHeaderFor(jar, "a.com")).toBe("");
+  });
+
+  it("treats max-age=0 as a deletion but leaves max-age=0123 alone", () => {
+    const jar: Jar = new Map();
+    storeCookies(jar, "a.com", ["a=1; Max-Age=0", "b=2; Max-Age=0123"]);
+    expect(cookieHeaderFor(jar, "a.com")).toBe("b=2");
+  });
+
+  it("lets a later value replace an earlier one", () => {
+    const jar: Jar = new Map();
+    storeCookies(jar, "a.com", ["t=1"]);
+    storeCookies(jar, "a.com", ["t=2"]);
+    expect(cookieHeaderFor(jar, "a.com")).toBe("t=2");
+  });
+
+  it("ignores malformed set-cookie values", () => {
+    const jar: Jar = new Map();
+    storeCookies(jar, "a.com", ["", "=novalue", "novalue", "ok=1"]);
+    expect(cookieHeaderFor(jar, "a.com")).toBe("ok=1");
+  });
+
+  it("returns nothing for a host it has never seen", () => {
+    expect(cookieHeaderFor(new Map(), "a.com")).toBe("");
   });
 });

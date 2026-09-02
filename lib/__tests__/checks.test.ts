@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  runChecks, score, summarise, findPhones, looksLikePlaceholder,
+  runChecks, score, summarise, findPhones, looksLikePlaceholder, isClientRendered,
   hasLocalBusinessSchema, tagContent, metaContent, textOf,
   type SiteInput,
 } from "@/lib/checks";
@@ -187,5 +187,45 @@ describe("scoring", () => {
       expect(f.impact, `${f.id} has no impact line`).toBeTruthy();
       expect(f.fix, `${f.id} has no fix`).toBeTruthy();
     }
+  });
+});
+
+describe("client-rendered pages", () => {
+  const shell = `<html><head><title>Karyfy</title><script src="/a.js"></script></head><body><div id="root"></div><script src="/b.js"></script></body></html>`;
+
+  it("recognises an empty app shell", () => {
+    expect(isClientRendered(shell)).toBe(true);
+    expect(isClientRendered('<div id="__next"></div>')).toBe(true);
+  });
+
+  it("does not mistake a real server-rendered page for one", () => {
+    expect(isClientRendered(`<body><p>${"word ".repeat(200)}</p></body>`)).toBe(false);
+  });
+
+  it("never claims a JavaScript-rendered site has no website", () => {
+    // The damaging false positive: telling a business their site does not
+    // exist when it renders perfectly well in a browser.
+    const findings = runChecks(site(shell));
+    expect(findings.find((f) => f.id === "placeholder")).toBeUndefined();
+    expect(findings.find((f) => f.id === "client-rendered")?.status).toBe("warn");
+  });
+
+  it("still flags a genuine holding page", () => {
+    const findings = runChecks(site("<html><body><h1>Coming soon</h1></body></html>"));
+    expect(findings.find((f) => f.id === "placeholder")?.status).toBe("fail");
+  });
+
+  it("reports content checks as unread rather than failed", () => {
+    const findings = runChecks(site(shell));
+    const phone = findings.find((f) => f.id === "phone")!;
+    expect(phone.status).toBe("warn");
+    expect(phone.detail).toMatch(/could not be read/i);
+    expect(findings.find((f) => f.id === "address")!.detail).toMatch(/could not be read/i);
+  });
+
+  it("still judges the head normally, since that part did arrive", () => {
+    const findings = runChecks(site(shell));
+    expect(findings.find((f) => f.id === "title")!.status).not.toBe("fail");
+    expect(findings.find((f) => f.id === "viewport")!.status).toBe("fail");
   });
 });
